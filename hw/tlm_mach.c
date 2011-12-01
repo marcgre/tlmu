@@ -60,8 +60,6 @@ static void configure_cpu(CPUArchState *env)
 
     /* The 34Kc on the ARTPEC-5 uses a vectored external interrupt ctrl.  */
     env->CP0_Config3 |= (1 << CP0C3_VEIC);
-#elif defined(TARGET_CRIS)
-    env->interrupt_vector = 1;
 #endif
 }
 
@@ -73,7 +71,6 @@ static void main_cpu_reset(void *opaque)
 
 #ifdef TARGET_CRIS
     env->pc = bootstrap_pc;
-    env->interrupt_vector = 1;
 #elif defined(TARGET_MIPS)
     env->active_tc.PC = bootstrap_pc;
 #elif defined(TARGET_ARM)
@@ -118,17 +115,17 @@ void tlm_mach_init_common (ram_addr_t ram_size,
 #ifdef TARGET_CRIS
     cpu_irq = cris_pic_init_cpu(env_);
     tlm_map(env_, 0x0ULL, 0xffffffffULL,
-            tlm_sync_period_ns, cpu_irq, 1);
+            tlm_sync_period_ns, cpu_irq, 1, &env_->interrupt_vector);
 #elif defined(TARGET_MIPS)
     cpu_irq = NULL;
     cpu_mips_irq_init_cpu(env_);
     cpu_mips_clock_init(env_);
     tlm_map(env_, 0x0ULL, 0xffffffffULL,
-            tlm_sync_period_ns, cpu_irq, 0);
+            tlm_sync_period_ns, cpu_irq, 0, NULL);
 #elif defined(TARGET_ARM)
     cpu_irq = arm_pic_init_cpu(arm_env_get_cpu(env_));
     tlm_map(env_, 0x0ULL, 0xffffffffULL,
-            tlm_sync_period_ns, cpu_irq, 2);
+            tlm_sync_period_ns, cpu_irq, 2, NULL);
 #endif
 
     tlm_register_rams();
