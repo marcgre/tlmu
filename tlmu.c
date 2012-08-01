@@ -306,6 +306,9 @@ int tlmu_load(struct tlmu *q, const char *soname)
 	sobasename = basename(socopy);
 
 	n = asprintf(&libname, ".tlmu/%s-%s", sobasename, q->name);
+	if (n < 0)
+		return 1;
+
 	copylib(soname, libname);
 
 	q->dl_handle = dlopen(libname, RTLD_LOCAL | RTLD_DEEPBIND | RTLD_NOW);
