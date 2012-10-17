@@ -1,14 +1,14 @@
 /*
  * Map a TLMu area.
  *
- * env             - CPUState for the connected core.
+ * env             - CPUArchState for the connected core.
  * addr            - Base address
  * size            - Size of mapping
  * sync_period_ns  - Sync timer interval
  * cpu_irq         - Interrupt lines
  * nr_irq          - Number of interrupt lines
  */
-static inline void tlm_map(CPUState *env, uint64_t addr, uint64_t size,
+static inline void tlm_map(CPUArchState *env, uint64_t addr, uint64_t size,
                            uint64_t sync_period_ns,
                            qemu_irq *cpu_irq, uint32_t nr_irq)
 {

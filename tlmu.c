@@ -220,15 +220,20 @@ static void copylib(const char *path, const char *newpath)
 
 	handle = dlopen(path, RTLD_LOCAL | RTLD_DEEPBIND | RTLD_NOW);
 	if (!handle) {
-		perror("path");
+        fprintf(stderr, "dlopen(\"%s\") failed: %s\n", path, dlerror());
 		goto err;
 	}
 
 	addr = dlsym(handle, "vl_main");
+    if(!addr){
+        fprintf(stderr, "dlsym(\"vl_main\") failed: %s\n", dlerror());
+		goto err;
+	}
+
 	ret = dladdr(addr, &info);
 	if (!ret) {
 		perror("dladdr");
-		fprintf(stderr, "vl_main doesn't exist in TLMu??\n");
+        fprintf(stderr, "dladdr(%p) failed: %s\n", addr, dlerror());
 		goto err;
 	}
 

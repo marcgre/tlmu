@@ -3384,6 +3384,7 @@ void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
         if (l > len)
             l = len;
         section = phys_page_find(d, page >> TARGET_PAGE_BITS);
+        if(is_debug && tlm_iodev_is_ram(section->mr)){++section->mr->ops;}//change ops to debug one
 
         if (is_write) {
             if (!memory_region_is_ram(section->mr)) {
@@ -3451,6 +3452,7 @@ void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
         len -= l;
         buf += l;
         addr += l;
+        if(is_debug && tlm_iodev_is_ram(section->mr)){--section->mr->ops;}//change ops to normal one
     }
 }
 
