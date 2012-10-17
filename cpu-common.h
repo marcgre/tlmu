@@ -31,6 +31,17 @@ typedef uintptr_t ram_addr_t;
 #  define RAM_ADDR_FMT "%" PRIxPTR
 #endif
 
+ 
+typedef struct TLM_RAMBlock {
+    int iodev;
+    void *opaque;
+    uint64_t base;
+    int (*bus_access)(void *opaque, int64_t clk, int rw,
+                       uint64_t addr, void *buf, int len);
+    void (*bus_access_dbg)(void *opaque, int64_t clk, int rw,
+                           uint64_t addr, void *buf, int len);
+} TLM_RAMBlock;
+
 /* memory API */
 
 typedef void CPUWriteMemoryFunc(void *opaque, target_phys_addr_t addr, uint32_t value);
@@ -49,7 +60,9 @@ int qemu_ram_addr_from_host(void *ptr, ram_addr_t *ram_addr);
 ram_addr_t qemu_ram_addr_from_host_nofail(void *ptr);
 void qemu_ram_set_idstr(ram_addr_t addr, const char *name, DeviceState *dev);
 
-void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
+int cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
+                            int len, int is_write);
+void cpu_physical_memory_rw_debug(target_phys_addr_t addr, uint8_t *buf,
                             int len, int is_write);
 static inline void cpu_physical_memory_read(target_phys_addr_t addr,
                                             void *buf, int len)
