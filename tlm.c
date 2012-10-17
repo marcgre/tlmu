@@ -36,9 +36,3 @@ int tlm_boot_state;
 
 uint64_t tlm_image_load_base = 0;
 uint64_t tlm_image_load_size = 0;
-
-int tlm_iodev_is_ram(int iodev) __attribute__((weak));
-int tlm_iodev_is_ram(int iodev)
-{
-    return 0;
-}

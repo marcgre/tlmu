@@ -3421,6 +3421,7 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
         if (l > len)
             l = len;
         section = phys_page_find(page >> TARGET_PAGE_BITS);
+        if(is_debug && tlm_iodev_is_ram(section->mr)){++section->mr->ops;}//change ops to debug one
 
         if (is_write) {
             if (!memory_region_is_ram(section->mr)) {
@@ -3494,6 +3495,7 @@ void cpu_physical_memory_rw(target_phys_addr_t addr, uint8_t *buf,
         len -= l;
         buf += l;
         addr += l;
+        if(is_debug && tlm_iodev_is_ram(section->mr)){--section->mr->ops;}//change ops to normal one
     }
 }
 

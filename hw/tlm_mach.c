@@ -27,7 +27,9 @@
 #include "flash.h"
 #include "boards.h"
 #include "sysemu.h"
+#ifdef TARGET_CRIS
 #include "etraxfs.h"
+#endif
 #include "loader.h"
 #include "elf.h"
 
@@ -45,7 +47,7 @@
 
 static uint64_t bootstrap_pc;
 
-static void configure_cpu(CPUState *env)
+static void configure_cpu(CPUArchState *env)
 {
 #ifdef TARGET_MIPS
     /* TODO: make this configurable somehow??  */
@@ -61,8 +63,8 @@ static void configure_cpu(CPUState *env)
 
 static void main_cpu_reset(void *opaque)
 {
-    CPUState *env = opaque;
-    cpu_reset(env);
+    CPUArchState *env = opaque;
+    cpu_reset(ENV_GET_CPU(env));
     configure_cpu(env);
 
 #ifdef TARGET_CRIS
@@ -90,7 +92,7 @@ void tlm_mach_init_common (ram_addr_t ram_size,
                        const char *kernel_filename, const char *kernel_cmdline,
                        const char *initrd_filename, const char *cpu_model)
 {
-    CPUState *env_;
+    CPUArchState *env_;
     qemu_irq *cpu_irq;
     int kernel_size;
 
@@ -120,7 +122,7 @@ void tlm_mach_init_common (ram_addr_t ram_size,
     tlm_map(env_, 0x0ULL, 0xffffffffULL,
             tlm_sync_period_ns, cpu_irq, 0);
 #elif defined(TARGET_ARM)
-    cpu_irq = NULL;
+    cpu_irq = arm_pic_init_cpu(arm_env_get_cpu(env_));
     tlm_map(env_, 0x0ULL, 0xffffffffULL,
             tlm_sync_period_ns, cpu_irq, 0);
 #endif
