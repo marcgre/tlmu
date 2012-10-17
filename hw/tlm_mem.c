@@ -75,7 +75,7 @@ struct TLMRegisterRamEntry {
 static struct TLMRegisterRamEntry *tlm_register_ram_entries = NULL;
 struct TLMMemory *main_tlmdev = NULL;
 
-void notdirty_mem_wr(target_phys_addr_t ram_addr, int len);
+void notdirty_mem_wr(hwaddr ram_addr, int len);
 
 static void tlm_write_irq(struct tlmu_irq *qirq)
 {
@@ -101,7 +101,7 @@ void tlm_bus_access_dbg(int rw, uint64_t addr, void *data, int len)
 
 int tlm_get_dmi_ptr(struct tlmu_dmi *dmi)
 {
-    target_phys_addr_t addr;
+    hwaddr addr;
     int len;
 
     assert(dmi);
@@ -185,7 +185,7 @@ int dmi_is_allowed(struct TLMMemory *s, int flags, uint64_t addr, int len)
     return 0;
 }
 
-static inline uint64_t tlm_dbg_read(void *opaque, target_phys_addr_t addr, unsigned int len){
+static inline uint64_t tlm_dbg_read(void *opaque, hwaddr addr, unsigned int len){
     struct TLMMemory *const s = opaque;
     const uint64_t eaddr = s->base_addr + addr;
     uint64_t r = 0;
@@ -195,7 +195,7 @@ static inline uint64_t tlm_dbg_read(void *opaque, target_phys_addr_t addr, unsig
     return r;
 }
 
-static inline void tlm_dbg_write(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int len){
+static inline void tlm_dbg_write(void *opaque, hwaddr addr, uint64_t value, unsigned int len){
     struct TLMMemory *const s = opaque;
     const uint64_t eaddr = s->base_addr + addr;
     const int64_t clk = qemu_get_clock_ns(vm_clock);
@@ -204,7 +204,7 @@ static inline void tlm_dbg_write(void *opaque, target_phys_addr_t addr, uint64_t
 }
 
 static inline
-uint64_t tlm_read(void *opaque, target_phys_addr_t addr, unsigned int len)
+uint64_t tlm_read(void *opaque, hwaddr addr, unsigned int len)
 {
     struct TLMMemory *const s = opaque;
     uint64_t r = 0;
@@ -241,7 +241,7 @@ uint64_t tlm_read(void *opaque, target_phys_addr_t addr, unsigned int len)
 }
 
 static inline void
-tlm_write(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int len)
+tlm_write(void *opaque, hwaddr addr, uint64_t value, unsigned int len)
 {
     struct TLMMemory *const s = opaque;
     uint64_t eaddr = s->base_addr + addr;
@@ -290,14 +290,14 @@ static const MemoryRegionOps tlm_mem_ops[2] = {
 };
 
 
-static inline uint64_t tlm_read_via_entry(void *opaque, target_phys_addr_t addr, unsigned int len)
+static inline uint64_t tlm_read_via_entry(void *opaque, hwaddr addr, unsigned int len)
 {
     struct TLMRegisterRamEntry *const ram = opaque;
     const uint64_t rd = tlm_read(ram->mem, addr, len);;
     D(printf("tlm_read_via_entry(%p, %08llX, %d) = %llX\n", opaque, (long long)addr, len, (long long)rd));
     return rd;
 }
-static inline void tlm_write_via_entry(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int len)
+static inline void tlm_write_via_entry(void *opaque, hwaddr addr, uint64_t value, unsigned int len)
 {
     struct TLMRegisterRamEntry *const ram = opaque;
     D(printf("tlm_write_via_entry(%p, %08llX, %08llX, %d)\n", opaque, (long long)addr, (long long)value, len));
@@ -305,14 +305,14 @@ static inline void tlm_write_via_entry(void *opaque, target_phys_addr_t addr, ui
 }
 
 
-static inline uint64_t tlm_dbg_read_via_entry(void *opaque, target_phys_addr_t addr, unsigned int len)
+static inline uint64_t tlm_dbg_read_via_entry(void *opaque, hwaddr addr, unsigned int len)
 {
     struct TLMRegisterRamEntry *const ram = opaque;
     const uint64_t rd = tlm_dbg_read(ram->mem, addr, len);;
     D(printf("tlm_dbg_read_via_entry(%p, %08llX, %d) = %llX\n", opaque, (long long)addr, len, (long long)rd));
     return rd;
 }
-static inline void tlm_dbg_write_via_entry(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int len)
+static inline void tlm_dbg_write_via_entry(void *opaque, hwaddr addr, uint64_t value, unsigned int len)
 {
     struct TLMRegisterRamEntry *const ram = opaque;
     D(printf("tlm_dbg_write_via_entry(%p, %08llX, %08llX, %d)\n", opaque, (long long)addr, (long long)value, len));
