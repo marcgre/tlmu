@@ -83,6 +83,7 @@ static inline DATA_TYPE glue(io_read, SUFFIX)(ENV_PARAM
     if (mr != &io_mem_ram && mr != &io_mem_rom
         && mr != &io_mem_unassigned
         && mr != &io_mem_notdirty
+        && !memory_region_is_tlmu_ramd(mr)
             && !can_do_io(env)) {
         cpu_io_recompile(env, retaddr);
     }
@@ -234,6 +235,7 @@ static inline void glue(io_write, SUFFIX)(ENV_PARAM
     if (mr != &io_mem_ram && mr != &io_mem_rom
         && mr != &io_mem_unassigned
         && mr != &io_mem_notdirty
+        && !memory_region_is_tlmu_ramd(mr)
             && !can_do_io(env)) {
         cpu_io_recompile(env, retaddr);
     }

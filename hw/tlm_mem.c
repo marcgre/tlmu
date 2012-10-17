@@ -86,12 +86,8 @@ static void tlm_write_irq(struct tlmu_irq *qirq)
 
 int tlm_bus_access(int rw, uint64_t addr, void *data, int len)
 {
-#if 0 
-    int r = cpu_physical_memory_rw(addr, data, len, rw);
+    const int r = cpu_physical_memory_rw(addr, data, len, rw);
     return r;
-#else
-    return 0;//FIXME just to compile
-#endif
 }
 
 void tlm_bus_access_dbg(int rw, uint64_t addr, void *data, int len)
@@ -473,17 +469,6 @@ static void map_ram(struct TLMRegisterRamEntry *ram)
         memory_region_add_subregion(&main_tlmdev->iomem, ram->base, &ram->mem->iomem);
         memory_region_set_readonly(&ram->mem->iomem, ram->rw ? false : true);
     }
-}
-
-/* Used by exec-all when mapping in pages for code fetching.  */
-int tlm_iodev_is_ram(const MemoryRegion *mr);
-int tlm_iodev_is_ram(const MemoryRegion *mr) {
-    return mr->ops && mr->ram;
-//    struct TLMRegisterRamEntry *ram;
-//    for(ram = tlm_register_ram_entries; ram; ram = ram->next) {
-//        if(mr == &ram->mem->iomem){return 1;}
-//    }
-    return 0;
 }
 
 void tlm_map_ram(const char *name, uint64_t addr, uint64_t size, int rw)
