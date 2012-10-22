@@ -214,31 +214,35 @@ static void copylib(const char *path, const char *newpath)
 	ssize_t r, wr;
 	const char *ld_path = NULL;
 	Dl_info info;
-	void *handle;
+	void *handle = NULL;
 	void *addr;
 	int ret;
+	struct stat stb;
 
-	handle = dlopen(path, RTLD_LOCAL | RTLD_DEEPBIND | RTLD_NOW);
-	if (!handle) {
-        fprintf(stderr, "dlopen(\"%s\") failed: %s\n", path, dlerror());
-		goto err;
-	}
+	if (stat(path, &stb) == 0) {
+		/* If the path exists, use it directly */
+		ld_path = strdup(path);
+	} else {
+		/* Otherwise, use dlopen to find path */
+		handle = dlopen(path, RTLD_LOCAL | RTLD_DEEPBIND | RTLD_NOW);
+		if (!handle) {
+			fprintf(stderr, "dlopen(\"%s\") failed: %s\n", path, dlerror());
+			goto err;
+		}
 
-	addr = dlsym(handle, "vl_main");
-    if(!addr){
-        fprintf(stderr, "dlsym(\"vl_main\") failed: %s\n", dlerror());
-		goto err;
-	}
+		addr = dlsym(handle, "vl_main");
+		if(!addr){
+			fprintf(stderr, "dlsym(\"vl_main\") failed: %s\n", dlerror());
+			goto err;
+		}
 
-	ret = dladdr(addr, &info);
-	if (!ret) {
-		perror("dladdr");
-        fprintf(stderr, "dladdr(%p) failed: %s\n", addr, dlerror());
-		goto err;
-	}
-
-	ld_path = strdup(info.dli_fname);
-	dlclose(handle);
+		ret = dladdr(addr, &info);
+		if (!ret) {
+			fprintf(stderr, "dladdr(%p) failed: %s\n", addr, dlerror());
+			goto err;
+		}
+		ld_path = strdup(info.dli_fname);
+    }
 
 	/* Now copy it into our per instance store.  */
 	s = open(ld_path, O_RDONLY);
@@ -255,19 +259,35 @@ static void copylib(const char *path, const char *newpath)
 		goto err;
 	}
 	do {
+		ssize_t written;
+
 		char buf[4 * 1024];
 		r = read(s, buf, sizeof buf);
 		if (r < 0 && (errno == EINTR || errno == EAGAIN))
 			continue;
 		/* TODO: handle partial writes.  */
 		if (r > 0) {
-			wr = write(d, buf, r);
+			written = 0;
+			do {
+				wr = write(d, buf, r);
+				if (wr <= 0) {
+					goto err;
+				}
+				written += wr;
+			} while (written < r);
 		}
 	} while (r);
 err:
 	free((void *) ld_path);
 	close(s);
 	close(d);
+	if(handle) dlclose(handle);
+}
+
+static void *dlsym_wrap(void *handle, const char *sym){
+    void *const ret = dlsym(handle, sym);
+    if(!ret) fprintf(stderr, "Error dlsym(%p, \"%s\"):%s\n", handle, sym, dlerror());
+    return ret;
 }
 
 int tlmu_load(struct tlmu *q, const char *soname)
@@ -283,6 +303,9 @@ int tlmu_load(struct tlmu *q, const char *soname)
 	copylib(soname, libname);
 
 	q->dl_handle = dlopen(libname, RTLD_LOCAL | RTLD_DEEPBIND | RTLD_NOW);
+    if(!q->dl_handle){
+        fprintf(stderr, "dlopen(%s):%s\n", libname, dlerror());
+    }
 //	err = unlink(libname);
 	if (err) {
 		perror(libname);
@@ -291,24 +314,24 @@ int tlmu_load(struct tlmu *q, const char *soname)
 	if (!q->dl_handle)
 		return 1;
 
-	q->main = dlsym(q->dl_handle, "vl_main");
-	q->tlm_set_log_filename = dlsym(q->dl_handle, "cpu_set_log_filename");
-	q->tlm_image_load_base = dlsym(q->dl_handle, "tlm_image_load_base");
-	q->tlm_image_load_size = dlsym(q->dl_handle, "tlm_image_load_size");
-	q->tlm_map_ram = dlsym(q->dl_handle, "tlm_map_ram");
-	q->tlm_opaque = dlsym(q->dl_handle, "tlm_opaque");
-	q->tlm_notify_event = dlsym(q->dl_handle, "tlm_notify_event");
-	q->tlm_timer_opaque = dlsym(q->dl_handle, "tlm_timer_opaque");
-	q->tlm_timer_start = dlsym(q->dl_handle, "tlm_timer_start");
-	q->tlm_sync = dlsym(q->dl_handle, "tlm_sync");
-	q->tlm_sync_period_ns = dlsym(q->dl_handle, "tlm_sync_period_ns");
-	q->tlm_boot_state = dlsym(q->dl_handle, "tlm_boot_state");
-	q->tlm_bus_access_cb = dlsym(q->dl_handle, "tlm_bus_access_cb");
-	q->tlm_bus_access_dbg_cb = dlsym(q->dl_handle, "tlm_bus_access_dbg_cb");
-	q->tlm_bus_access = dlsym(q->dl_handle, "tlm_bus_access");
-	q->tlm_bus_access_dbg = dlsym(q->dl_handle, "tlm_bus_access_dbg");
-	q->tlm_get_dmi_ptr_cb = dlsym(q->dl_handle, "tlm_get_dmi_ptr_cb");
-	q->tlm_get_dmi_ptr = dlsym(q->dl_handle, "tlm_get_dmi_ptr");
+	q->main = dlsym_wrap(q->dl_handle, "vl_main");
+	q->tlm_set_log_filename = dlsym_wrap(q->dl_handle, "cpu_set_log_filename");
+	q->tlm_image_load_base = dlsym_wrap(q->dl_handle, "tlm_image_load_base");
+	q->tlm_image_load_size = dlsym_wrap(q->dl_handle, "tlm_image_load_size");
+	q->tlm_map_ram = dlsym_wrap(q->dl_handle, "tlm_map_ram");
+	q->tlm_opaque = dlsym_wrap(q->dl_handle, "tlm_opaque");
+	q->tlm_notify_event = dlsym_wrap(q->dl_handle, "tlm_notify_event");
+	q->tlm_timer_opaque = dlsym_wrap(q->dl_handle, "tlm_timer_opaque");
+	q->tlm_timer_start = dlsym_wrap(q->dl_handle, "tlm_timer_start");
+	q->tlm_sync = dlsym_wrap(q->dl_handle, "tlm_sync");
+	q->tlm_sync_period_ns = dlsym_wrap(q->dl_handle, "tlm_sync_period_ns");
+	q->tlm_boot_state = dlsym_wrap(q->dl_handle, "tlm_boot_state");
+	q->tlm_bus_access_cb = dlsym_wrap(q->dl_handle, "tlm_bus_access_cb");
+	q->tlm_bus_access_dbg_cb = dlsym_wrap(q->dl_handle, "tlm_bus_access_dbg_cb");
+	q->tlm_bus_access = dlsym_wrap(q->dl_handle, "tlm_bus_access");
+	q->tlm_bus_access_dbg = dlsym_wrap(q->dl_handle, "tlm_bus_access_dbg");
+	q->tlm_get_dmi_ptr_cb = dlsym_wrap(q->dl_handle, "tlm_get_dmi_ptr_cb");
+	q->tlm_get_dmi_ptr = dlsym_wrap(q->dl_handle, "tlm_get_dmi_ptr");
 	tlmu_set_timer_start_cb(q, q, tlmu_timer_start);
 	if (!q->main
 		|| !q->tlm_map_ram
