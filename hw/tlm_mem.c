@@ -36,12 +36,22 @@
 /* just quick hack to compile this file. FIXME */
 uint64_t qemu_icount;
 
+struct TLMMemory_base{
+    uint64_t base_addr;
+    uint64_t size;
+    MemoryRegion iomem;
+    struct tlmu_dmi dmi;
+    int is_ram;
+    const char *name;
+};
+
 
 /* There is one of these instantiated per memory/IO area. The first one
    is the only one with valid IRQ connections, the rest are only meant to
    be used for RAM maps.  */
 struct TLMMemory {
     SysBusDevice busdev;
+    struct TLMMemory_base info;
     void *cpu_env; //actually its type is CPUArchState *;
 
     QEMUBH *sync_bh;
@@ -49,26 +59,14 @@ struct TLMMemory {
     ptimer_state *sync_ptimer;
     qemu_irq *cpu_irq;
 
-    MemoryRegion iomem;
-    int is_ram;
-    uint64_t base_addr;
-    uint64_t size;
     uint64_t sync_period_ns;
     uint32_t pending_irq[16]; /* max 512 irqs.  */
     uint32_t nr_irq;
-
-    struct tlmu_dmi dmi;
-
     void *irq_vector;
 };
 
 struct TLMRegisterRamEntry {
-    const char *name;
-    uint64_t base;
-    uint64_t size;
-    int rw;
-
-    struct TLMMemory *mem;
+    struct TLMMemory_base info;
     struct TLMRegisterRamEntry *next;
 };
 
@@ -121,19 +119,19 @@ int tlm_get_dmi_ptr(struct tlmu_dmi *dmi)
 
 static inline
 int dmi_check_flags(struct TLMMemory *s, int flags) {
-	return (s->dmi.prot & flags) == flags;
+	return (s->info.dmi.prot & flags) == flags;
 }
 
 /*
  * Check if this particular TLMMemory needs to get it's dmi mappings
  * invalidated. If so, invalidate them.
  */
-static void tlm_check_invalidate_dmi(struct TLMMemory *s,
+static void tlm_check_invalidate_dmi(struct TLMMemory_base *info,
                                      uint64_t start, uint64_t end)
 {
-    if (start > s->base_addr && start < (s->base_addr + s->size)) {
-        s->dmi.ptr = NULL;
-        s->dmi.prot = 0;
+    if (start > info->base_addr && start < (info->base_addr + info->size)) {
+        info->dmi.ptr = NULL;
+        info->dmi.prot = 0;
     }
 }
 
@@ -143,46 +141,39 @@ static void tlm_check_invalidate_dmi(struct TLMMemory *s,
  */
 static void tlm_invalidate_dmi(struct tlmu_dmi *dmi)
 {
+    const uint64_t start = dmi->base;
+    const uint64_t end = dmi->base + dmi->size;
     struct TLMRegisterRamEntry *ram;
-    struct TLMMemory *s;
-    uint64_t start, end;
-
-    start = dmi->base;
-    end = dmi->base + dmi->size;
-
-    ram = tlm_register_ram_entries;
-    while (ram) {
-	s = ram->mem;
-        tlm_check_invalidate_dmi(s, start, end);
-        ram = ram->next;
+    for(ram = tlm_register_ram_entries; ram; ram = ram->next){
+        tlm_check_invalidate_dmi(&ram->info, start, end);
     }
 
     /* Also check the main dev.  */
-    tlm_check_invalidate_dmi(main_tlmdev, start, end);
+    tlm_check_invalidate_dmi(&main_tlmdev->info, start, end);
 }
 
-static void tlm_try_dmi(struct TLMMemory *s, uint64_t addr, int len)
+static void tlm_try_dmi(struct TLMMemory_base *info, uint64_t addr, int len)
 {
     if (tlm_get_dmi_ptr_cb) {
-        tlm_get_dmi_ptr_cb(tlm_opaque, addr, &s->dmi);
+        tlm_get_dmi_ptr_cb(tlm_opaque, addr, &info->dmi);
         /* If we got a readable aligned ptr, make it a fast one!  */
-        if (s->dmi.ptr && (s->dmi.prot & TLMU_DMI_PROT_READ)) {
-            intptr_t p = (intptr_t) s->dmi.ptr;
-            if (s->dmi.base == s->base_addr
-                && s->dmi.size == s->size
-                && (p & 0x3) == 0) {
-                s->dmi.prot |= TLMU_DMI_PROT_FAST;
+        if (info->dmi.ptr && (info->dmi.prot & TLMU_DMI_PROT_READ)) {
+            const intptr_t p = (intptr_t) info->dmi.ptr;
+            if (info->dmi.base == info->base_addr
+                    && info->dmi.size == info->size
+                    && (p & 0x3) == 0) {
+                info->dmi.prot |= TLMU_DMI_PROT_FAST;
             }
         }
     }
 }
 
 static
-int dmi_is_allowed(struct TLMMemory *s, int flags, uint64_t addr, int len)
+int dmi_is_allowed(struct TLMMemory_base *info, int flags, uint64_t addr, int len)
 {
-    if (s->dmi.ptr && s->dmi.prot & flags) {
-        if (addr >= s->dmi.base
-            && (addr + len - 1) <= (s->dmi.base + s->dmi.size)) {
+    if (info->dmi.ptr && info->dmi.prot & flags) {
+        if (addr >= info->dmi.base
+            && (addr + len - 1) <= (info->dmi.base + info->dmi.size)) {
             return 1;
         }
     }
@@ -190,8 +181,8 @@ int dmi_is_allowed(struct TLMMemory *s, int flags, uint64_t addr, int len)
 }
 
 static inline uint64_t tlm_dbg_read(void *opaque, target_phys_addr_t addr, unsigned int len){
-    struct TLMMemory *const s = opaque;
-    const uint64_t eaddr = s->base_addr + addr;
+    struct TLMMemory_base *const info = opaque;
+    const uint64_t eaddr = info->base_addr + addr;
     uint64_t r = 0;
     const int64_t clk = qemu_get_clock_ns(vm_clock);
     D(printf("tlm_dbg_read(%p, %08llX, %d)\n", opaque, (long long)eaddr, len));
@@ -200,8 +191,8 @@ static inline uint64_t tlm_dbg_read(void *opaque, target_phys_addr_t addr, unsig
 }
 
 static inline void tlm_dbg_write(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int len){
-    struct TLMMemory *const s = opaque;
-    const uint64_t eaddr = s->base_addr + addr;
+    struct TLMMemory_base *const info = opaque;
+    const uint64_t eaddr = info->base_addr + addr;
     const int64_t clk = qemu_get_clock_ns(vm_clock);
     D(printf("tlm_dbg_write(%p, %08llX, %08llX, %d)\n", opaque, (long long)eaddr, (long long)value, len));
     tlm_bus_access_dbg_cb(tlm_opaque, clk, 1, eaddr, &value, len);
@@ -210,24 +201,22 @@ static inline void tlm_dbg_write(void *opaque, target_phys_addr_t addr, uint64_t
 static inline
 uint64_t tlm_read(void *opaque, target_phys_addr_t addr, unsigned int len)
 {
-    struct TLMMemory *const s = opaque;
+    struct TLMMemory_base *const info = opaque;
     uint64_t r = 0;
-    const uint64_t eaddr = s->base_addr + addr;
+    const uint64_t eaddr = info->base_addr + addr;
     int64_t clk;
     int dmi_supported;
 
-//    qemu_log("%s: addr=%lx,%lx.%lx len=%d\n", __func__, s->base_addr, eaddr, (unsigned long) addr, len);
-
     D(printf("tlm_read(%p, %08llX, %d)\n", opaque, (long long)eaddr, len));
-    if (dmi_is_allowed(s, TLMU_DMI_PROT_READ, eaddr, len)) {
+    if (dmi_is_allowed(info, TLMU_DMI_PROT_READ, eaddr, len)) {
         int offset;
-        char *p = s->dmi.ptr;
+        char *p = info->dmi.ptr;
 
-        offset = eaddr - s->dmi.base;
+        offset = eaddr - info->dmi.base;
         p += offset;
         memcpy(&r, p, len);
-        qemu_icount += s->dmi.read_latency * len;
-        if (!s->is_ram) {
+        qemu_icount += info->dmi.read_latency * len;
+        if (!info->is_ram) {
             clk = qemu_get_clock_ns(vm_clock);
             tlm_sync(tlm_opaque, clk);
         }
@@ -236,8 +225,8 @@ uint64_t tlm_read(void *opaque, target_phys_addr_t addr, unsigned int len)
 
     clk = qemu_get_clock_ns(vm_clock);
     dmi_supported = tlm_bus_access_cb(tlm_opaque, clk, 0, eaddr, &r, len);
-    if (dmi_supported && !s->dmi.prot) {
-        tlm_try_dmi(s, eaddr, len);
+    if (dmi_supported && !info->dmi.prot) {
+        tlm_try_dmi(info, eaddr, len);
     }
 
     D(qemu_log("%s: addr=%lx r=%x len=%d)\n", __func__, eaddr, r, len));
@@ -247,27 +236,26 @@ uint64_t tlm_read(void *opaque, target_phys_addr_t addr, unsigned int len)
 static inline void
 tlm_write(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int len)
 {
-    struct TLMMemory *const s = opaque;
-    uint64_t eaddr = s->base_addr + addr;
+    struct TLMMemory_base *const info = opaque;
+    uint64_t eaddr = info->base_addr + addr;
     int64_t clk;
     int dmi_supported;
 
     D(printf("tlm_write(%p, %08llX, %08llX, %d)\n", opaque, (long long)eaddr, (long long)value, len));
 
-    if (s->is_ram) {
+    if (info->is_ram) {
         //notdirty_mem_wr(eaddr, len); //FIXME just to compile
     }
-//    qemu_log("%s: addr=%lx.%lx value=%x len=%d\n", __func__, eaddr, (unsigned long) addr, value, len);
 
-    if (dmi_is_allowed(s, TLMU_DMI_PROT_WRITE, eaddr, len)) {
+    if (dmi_is_allowed(info, TLMU_DMI_PROT_WRITE, eaddr, len)) {
         int offset;
-        char *p = s->dmi.ptr;
+        char *p = info->dmi.ptr;
 
-        offset = eaddr - s->dmi.base;
+        offset = eaddr - info->dmi.base;
         p += offset;
         memcpy(p, &value, len);
-        qemu_icount += s->dmi.write_latency * len;
-        if (!s->is_ram) {
+        qemu_icount += info->dmi.write_latency * len;
+        if (!info->is_ram) {
             clk = qemu_get_clock_ns(vm_clock);
             tlm_sync(tlm_opaque, clk);
         }
@@ -276,10 +264,11 @@ tlm_write(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int le
 
     clk = qemu_get_clock_ns(vm_clock);
     dmi_supported = tlm_bus_access_cb(tlm_opaque, clk, 1, eaddr, &value, len);
-    if (dmi_supported && !s->dmi.prot) {
-        tlm_try_dmi(s, eaddr, len);
+    if (dmi_supported && !info->dmi.prot) {
+        tlm_try_dmi(info, eaddr, len);
     }
 }
+
 static const MemoryRegionOps tlm_mem_ops[2] = {
     {
         .read = tlm_read,
@@ -292,53 +281,6 @@ static const MemoryRegionOps tlm_mem_ops[2] = {
         .endianness = DEVICE_NATIVE_ENDIAN
     }
 };
-
-
-static inline uint64_t tlm_read_via_entry(void *opaque, target_phys_addr_t addr, unsigned int len)
-{
-    struct TLMRegisterRamEntry *const ram = opaque;
-    const uint64_t rd = tlm_read(ram->mem, addr, len);;
-    D(printf("tlm_read_via_entry(%p, %08llX, %d) = %llX\n", opaque, (long long)addr, len, (long long)rd));
-    return rd;
-}
-static inline void tlm_write_via_entry(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int len)
-{
-    struct TLMRegisterRamEntry *const ram = opaque;
-    D(printf("tlm_write_via_entry(%p, %08llX, %08llX, %d)\n", opaque, (long long)addr, (long long)value, len));
-    tlm_write(ram->mem, addr, value, len);
-}
-
-
-static inline uint64_t tlm_dbg_read_via_entry(void *opaque, target_phys_addr_t addr, unsigned int len)
-{
-    struct TLMRegisterRamEntry *const ram = opaque;
-    const uint64_t rd = tlm_dbg_read(ram->mem, addr, len);;
-    D(printf("tlm_dbg_read_via_entry(%p, %08llX, %d) = %llX\n", opaque, (long long)addr, len, (long long)rd));
-    return rd;
-}
-static inline void tlm_dbg_write_via_entry(void *opaque, target_phys_addr_t addr, uint64_t value, unsigned int len)
-{
-    struct TLMRegisterRamEntry *const ram = opaque;
-    D(printf("tlm_dbg_write_via_entry(%p, %08llX, %08llX, %d)\n", opaque, (long long)addr, (long long)value, len));
-    tlm_dbg_write(ram->mem, addr, value, len);
-}
-
-
-
-static const MemoryRegionOps tlm_mem_entry_ops[2] = {
-    {
-        .read = tlm_read_via_entry,
-        .write = tlm_write_via_entry,
-        .endianness = DEVICE_NATIVE_ENDIAN
-    },
-    {
-        .read = tlm_dbg_read_via_entry,
-        .write = tlm_dbg_write_via_entry,
-        .endianness = DEVICE_NATIVE_ENDIAN
-    }
-};
-
-
 
 
 static void update_irq(void *opaque)
@@ -418,8 +360,9 @@ static int tlm_memory_init(SysBusDevice *dev)
         ptimer_run(s->sync_ptimer, 0);
     }
 
-    memory_region_init_io(&s->iomem, tlm_mem_ops, s, "tlm_memory", s->size);
-    sysbus_init_mmio(dev, &s->iomem);
+    s->info.name = "tlm_memory";
+    memory_region_init_io(&s->info.iomem, tlm_mem_ops, &s->info, s->info.name, s->info.size);
+    sysbus_init_mmio(dev, &s->info.iomem);
 
     /* Register the main tlm dev.  Used for interrupts.  */
     main_tlmdev = s;
@@ -428,8 +371,8 @@ static int tlm_memory_init(SysBusDevice *dev)
 }
 
 static Property tlm_mem_props[] = {
-    DEFINE_PROP_UINT64("base_addr", struct TLMMemory, base_addr, 0),
-    DEFINE_PROP_UINT64("size", struct TLMMemory, size, 0),
+    DEFINE_PROP_UINT64("base_addr", struct TLMMemory, info.base_addr, 0),
+    DEFINE_PROP_UINT64("size", struct TLMMemory, info.size, 0),
     DEFINE_PROP_PTR("cpu_env", struct TLMMemory, cpu_env),
     DEFINE_PROP_UINT64("sync_period_ns", struct TLMMemory, sync_period_ns, 0),
     DEFINE_PROP_UINT32("nr_irq", struct TLMMemory, nr_irq, 0),
@@ -460,39 +403,30 @@ type_init(tlm_memory_register_type)
 
 static void map_ram(struct TLMRegisterRamEntry *ram)
 {
-    printf("map_ram(%p:%s) base:0x%08X size:0x%08X called\n", ram, ram->name, (unsigned)ram->base, (unsigned)ram->size);
-    tlm_try_dmi(ram->mem, ram->base, ram->size);
-    if(ram->mem->dmi.ptr){
+    printf("map_ram(%p:%s) base:0x%08llX size:0x%08llX called\n",
+            ram, ram->info.name, (long long)ram->info.base_addr, (long long)ram->info.size);
+    tlm_try_dmi(&ram->info, ram->info.base_addr, ram->info.size);
+    if(ram->info.dmi.ptr){
         printf("DMI is OK\n");
-        memory_region_init_ram_ptr(&ram->mem->iomem, ram->name, ram->size, ram->mem->dmi.ptr);
-        vmstate_register_ram_global(&ram->mem->iomem);
-        memory_region_add_subregion(&main_tlmdev->iomem, ram->base, &ram->mem->iomem);
-        memory_region_set_readonly(&ram->mem->iomem, ram->rw ? false : true);
+        memory_region_init_ram_ptr(&ram->info.iomem, ram->info.name, ram->info.size, ram->info.dmi.ptr);
     }
     else{
-        memory_region_init_ram(&ram->mem->iomem, ram->name, ram->size);
-        ram->mem->iomem.ops = tlm_mem_entry_ops;
-        ram->mem->iomem.opaque = ram;
-        vmstate_register_ram_global(&ram->mem->iomem);
-        memory_region_add_subregion(&main_tlmdev->iomem, ram->base, &ram->mem->iomem);
-        memory_region_set_readonly(&ram->mem->iomem, ram->rw ? false : true);
+        memory_region_init_ram(&ram->info.iomem, ram->info.name, ram->info.size);
+        ram->info.iomem.ops = tlm_mem_ops;
+        ram->info.iomem.opaque = &ram->info;
     }
+    vmstate_register_ram_global(&ram->info.iomem);
+    memory_region_add_subregion(&main_tlmdev->info.iomem, ram->info.base_addr, &ram->info.iomem);
+    memory_region_set_readonly(&ram->info.iomem, ram->info.is_ram ? false : true);
 }
 
 void tlm_map_ram(const char *name, uint64_t addr, uint64_t size, int rw)
 {
-    struct TLMRegisterRamEntry *ram;
-
-    ram = g_malloc0(sizeof *ram);
-    ram->name = g_strdup(name);
-    ram->base = addr;
-    ram->size = size;
-    ram->rw = rw;
-
-    ram->mem = g_malloc0(sizeof *ram->mem);
-    ram->mem->is_ram = rw;
-    ram->mem->base_addr = addr;
-    ram->mem->size = size;
+    struct TLMRegisterRamEntry *const ram = g_malloc0(sizeof *ram);
+    ram->info.name = g_strdup(name);
+    ram->info.base_addr = addr;
+    ram->info.size = size;
+    ram->info.is_ram = rw;
 
     /* Insert.  */
     ram->next = tlm_register_ram_entries;
@@ -502,10 +436,8 @@ void tlm_map_ram(const char *name, uint64_t addr, uint64_t size, int rw)
 void tlm_register_rams(void)
 {
     struct TLMRegisterRamEntry *ram;
-
-    ram = tlm_register_ram_entries;
-    while (ram) {
+    for(ram = tlm_register_ram_entries; ram; ram = ram->next){
         map_ram(ram);
-        ram = ram->next;
     }
 }
+
