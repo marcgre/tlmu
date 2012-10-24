@@ -20,9 +20,13 @@
  * THE SOFTWARE.
  */
 
+#ifndef TLMU_TLMU_H
+#define TLMU_TLMU_H
 #include <setjmp.h>
 #include "tlmu-qemuif.h"
-
+#ifdef __cplusplus
+extern "C"{
+#endif
 struct tlmu_timer {
 	int64_t expire_time;
 	int pending;
@@ -186,3 +190,7 @@ static inline void tlmu_delete(struct tlmu *t)
 	/* FIXME.  */
 }
 
+#ifdef __cplusplus
+}
+#endif
+#endif

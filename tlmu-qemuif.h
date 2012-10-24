@@ -1,3 +1,9 @@
+#ifndef TLMU_TLMU_QEMUIF_H
+#define TLMU_TLMU_QEMUIF_H
+#ifdef __cplusplus
+extern "C"{
+#endif
+
 enum tlmu_boot_state {
     TLMU_BOOT_SLEEPING,
     TLMU_BOOT_RUNNING
@@ -36,3 +42,8 @@ struct tlmu_dmi
     unsigned int read_latency;   /* Read access delay.  */
     unsigned int write_latency;  /* Write access delay.  */
 };
+
+#ifdef __cplusplus
+}
+#endif
+#endif
