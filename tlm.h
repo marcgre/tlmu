@@ -1,5 +1,9 @@
+#ifndef TLMU_TLM_H
+#define TLMU_TLM_H
 #include "tlmu-qemuif.h"
-
+#ifdef __cplusplus
+extern "C"{
+#endif
 extern void *tlm_opaque;
 extern int (*tlm_bus_access_cb)(void *o, int64_t clk, int rw,
                           uint64_t addr, void *data, int len);
@@ -33,3 +37,8 @@ extern int tlm_boot_state;
 
 extern uint64_t tlm_image_load_base;
 extern uint64_t tlm_image_load_size;
+
+#ifdef __cplusplus
+}
+#endif
+#endif
