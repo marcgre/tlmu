@@ -41,7 +41,6 @@ struct tlmu_timer {
 struct tlmu
 {
 	const char *name;
-	jmp_buf top;
 
 	/* We only need one timer per instance.  */
 	struct tlmu_timer timer;
@@ -79,6 +78,7 @@ struct tlmu
 	void (**tlm_get_dmi_ptr_cb)(void *o, uint64_t addr,
 					struct tlmu_dmi *dmi);
 	int (*tlm_get_dmi_ptr)(struct tlmu_dmi *dmi);
+    void (*qemu_system_shutdown_request)(void);
 };
 
 /*

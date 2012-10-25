@@ -18,6 +18,7 @@ FOO {
           tlm_get_dmi_ptr_cb;
           tlm_get_dmi_ptr;
           vl_main;
+          qemu_system_shutdown_request;
   local: *;         # hide everything else
 };
 
