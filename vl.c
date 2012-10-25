@@ -2390,7 +2390,7 @@ int vl_main(int ignore_sigint, int no_sdl, int no_gui_timer,
     atexit(qemu_run_exit_notifiers);
     error_set_progname(argv[0]);
 
-    g_mem_set_vtable(&mem_trace);
+    if(g_mem_is_system_malloc()) g_mem_set_vtable(&mem_trace);
     if (!g_thread_supported()) {
 #if !GLIB_CHECK_VERSION(2, 31, 0)
         g_thread_init(NULL);
