@@ -68,6 +68,7 @@ struct TLMMemory {
 struct TLMRegisterRamEntry {
     struct TLMMemory_base info;
     struct TLMRegisterRamEntry *next;
+    int try_turbo_mode;
 };
 
 static struct TLMRegisterRamEntry *tlm_register_ram_entries = NULL;
@@ -406,11 +407,17 @@ static void map_ram(struct TLMRegisterRamEntry *ram)
     D(printf("map_ram(%p:%s) base:0x%08llX size:0x%08llX called\n",
             ram, ram->info.name, (long long)ram->info.base_addr, (long long)ram->info.size));
     tlm_try_dmi(&ram->info, ram->info.base_addr, ram->info.size);
-    if(ram->info.dmi.ptr){//turbo mode
+    if(ram->try_turbo_mode && ram->info.dmi.ptr){//turbo mode
         D(printf("DMI is OK\n"));
         memory_region_init_ram_ptr(&ram->info.iomem, ram->info.name, ram->info.size, ram->info.dmi.ptr);
     }
     else{
+        if(ram->try_turbo_mode){
+            fprintf(stderr,
+                    "Warning: ram(%s) is expected to use turmo mode, "
+                    "but DMI(r/w) is not available for this area. This area will be accessed via b_transport()\n",
+                    ram->info.name);
+        }
         memory_region_init_ram(&ram->info.iomem, ram->info.name, ram->info.size);
         ram->info.iomem.ops = tlm_mem_ops;
         ram->info.iomem.opaque = &ram->info;
@@ -420,13 +427,14 @@ static void map_ram(struct TLMRegisterRamEntry *ram)
     memory_region_set_readonly(&ram->info.iomem, ram->info.is_ram ? false : true);
 }
 
-void tlm_map_ram(const char *name, uint64_t addr, uint64_t size, int rw)
+void tlm_map_ram(const char *name, uint64_t addr, uint64_t size, int rw, int try_turbo_mode)
 {
     struct TLMRegisterRamEntry *const ram = g_malloc0(sizeof *ram);
     ram->info.name = g_strdup(name);
     ram->info.base_addr = addr;
     ram->info.size = size;
     ram->info.is_ram = rw;
+    ram->try_turbo_mode = try_turbo_mode;
 
     /* Insert.  */
     ram->next = tlm_register_ram_entries;

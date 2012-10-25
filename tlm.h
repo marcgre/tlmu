@@ -25,7 +25,7 @@ extern void (*tlm_timer_start)(void *q, void *o,
 
 /* Used to map address areas as RAM. Needed by QEMU to allow code execution
    on these areas.  */
-void tlm_map_ram(const char *name, uint64_t addr, uint64_t size, int rw);
+void tlm_map_ram(const char *name, uint64_t addr, uint64_t size, int rw, int);
 void tlm_register_rams(void);
 
 extern uint64_t tlm_sync_period_ns;
