@@ -366,7 +366,7 @@ static int tlm_memory_init(SysBusDevice *dev)
 
     /* Register the main tlm dev.  Used for interrupts.  */
     main_tlmdev = s;
-    printf("tlm_memory_init() called %p\n", main_tlmdev);
+    D(printf("tlm_memory_init() called %p\n", main_tlmdev));
     return 0;
 }
 
@@ -403,11 +403,11 @@ type_init(tlm_memory_register_type)
 
 static void map_ram(struct TLMRegisterRamEntry *ram)
 {
-    printf("map_ram(%p:%s) base:0x%08llX size:0x%08llX called\n",
-            ram, ram->info.name, (long long)ram->info.base_addr, (long long)ram->info.size);
+    D(printf("map_ram(%p:%s) base:0x%08llX size:0x%08llX called\n",
+            ram, ram->info.name, (long long)ram->info.base_addr, (long long)ram->info.size));
     tlm_try_dmi(&ram->info, ram->info.base_addr, ram->info.size);
-    if(ram->info.dmi.ptr){
-        printf("DMI is OK\n");
+    if(ram->info.dmi.ptr){//turbo mode
+        D(printf("DMI is OK\n"));
         memory_region_init_ram_ptr(&ram->info.iomem, ram->info.name, ram->info.size, ram->info.dmi.ptr);
     }
     else{
