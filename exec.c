@@ -3617,10 +3617,6 @@ void cpu_physical_memory_write_rom(target_phys_addr_t addr,
                             );
                     abort();
                 }
-                    fprintf(stderr, "start:0x%08llX len:0x%X section start:0x%08llX size:0x%llX\n",
-                            (long long) addr, len,
-                            (long long) section->offset_within_address_space, (long long)section->size
-                            );
             }
             else{
                 unsigned long addr1;
