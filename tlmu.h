@@ -61,7 +61,7 @@ struct tlmu
 	    int argc, const char **argv, char **envp);
 
 	void (*tlm_map_ram)(const char *name,
-			    uint64_t addr, uint64_t size, int rw);
+			    uint64_t addr, uint64_t size, int rw, int try_turbo_mode);
 	void **tlm_opaque;
 	void **tlm_timer_opaque;
 	uint64_t *tlm_image_load_base;
@@ -181,6 +181,19 @@ void tlmu_set_timer_start_cb(struct tlmu *t, void *o,
  */
 void tlmu_map_ram(struct tlmu *t, const char *name,
                 uint64_t addr, uint64_t size, int rw);
+/*
+ * Tell the TLMu instance that a given memory area is maps to RAM and can be accessed without timing annotation.
+ *
+ * t         - The TLMu instance
+ * name      - An name for the RAM
+ * addr      - Base address
+ * size      - Size of RAM
+ * rw        - Zero if ROM, one if writes are allowed.
+ */
+void tlmu_map_ram_nosync(struct tlmu *t, const char *name,
+                uint64_t addr, uint64_t size, int rw);
+
+
 /*
  * Set the per TLMu instance log filename.
  *

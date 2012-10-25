@@ -450,8 +450,16 @@ int tlmu_get_dmi_ptr(struct tlmu *q, struct tlmu_dmi *dmi)
 void tlmu_map_ram(struct tlmu *q, const char *name,
 		uint64_t addr, uint64_t size, int rw)
 {
-	q->tlm_map_ram(name, addr, size, rw);
+	q->tlm_map_ram(name, addr, size, rw, 0);
 }
+
+
+void tlmu_map_ram_nosync(struct tlmu *q, const char *name,
+		uint64_t addr, uint64_t size, int rw)
+{
+	q->tlm_map_ram(name, addr, size, rw, 1);
+}
+
 
 void tlmu_set_log_filename(struct tlmu *q, const char *f)
 {
