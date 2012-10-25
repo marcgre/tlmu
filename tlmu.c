@@ -348,6 +348,7 @@ int tlmu_load(struct tlmu *q, const char *soname)
 	q->tlm_bus_access_dbg = dlsym_wrap(q->dl_handle, "tlm_bus_access_dbg");
 	q->tlm_get_dmi_ptr_cb = dlsym_wrap(q->dl_handle, "tlm_get_dmi_ptr_cb");
 	q->tlm_get_dmi_ptr = dlsym_wrap(q->dl_handle, "tlm_get_dmi_ptr");
+    q->qemu_system_shutdown_request = dlsym_wrap(q->dl_handle, "qemu_system_shutdown_request");
 	tlmu_set_timer_start_cb(q, q, tlmu_timer_start);
 	if (!q->main
 		|| !q->tlm_map_ram
@@ -365,7 +366,8 @@ int tlmu_load(struct tlmu *q, const char *soname)
 		|| !q->tlm_bus_access
 		|| !q->tlm_bus_access_dbg
 		|| !q->tlm_get_dmi_ptr_cb
-		|| !q->tlm_get_dmi_ptr) {
+		|| !q->tlm_get_dmi_ptr
+        || !q->qemu_system_shutdown_request) {
 		dlclose(q->dl_handle);
 		free(socopy);
 		return 1;
@@ -480,17 +482,14 @@ void tlmu_append_arg(struct tlmu *t, const char *arg)
 void tlmu_run(struct tlmu *t)
 {
 	int argc = 0;
-	int done;
 
 	while (t->argv[argc])
 		argc++;
 
-	done = setjmp(t->top);
-	if (!done)
-		t->main(0, 1, 1, argc, t->argv, NULL);
+    t->main(0, 1, 1, argc, t->argv, NULL);
 }
 
 void tlmu_exit(struct tlmu *t)
 {
-	longjmp(t->top, 1);
+    (*(t->qemu_system_shutdown_request))();
 }
