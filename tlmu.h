@@ -23,6 +23,13 @@
 #ifndef TLMU_TLMU_H
 #define TLMU_TLMU_H
 #include <setjmp.h>
+
+#define TLMU_BASE_QEMU_MAJOR_VER 1
+#define TLMU_BASE_QEMU_MINOR_VER 2
+#define TLMU_BASE_QEMU_RELEASE_VER 0
+#define TLMU_BASE_QEMU_VER ((TLMU_BASE_QEMU_MAJOR_VER << 16) | (TLMU_BASE_QEMU_MINOR_VER << 8) | (TLMU_BASE_QEMU_RELEASE_VER << 0))
+
+
 #include "tlmu-qemuif.h"
 #ifdef __cplusplus
 extern "C"{
