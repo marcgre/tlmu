@@ -330,6 +330,9 @@ void tlm_notify_event(enum tlmu_event ev, void *d)
         case TLMU_TLM_EVENT_INVALIDATE_DMI:
             tlm_invalidate_dmi(d);
             break;
+        case TLMU_TLM_EVENT_RESET:
+            qemu_system_reset_request();
+            break;
         default:
             break;
     }
