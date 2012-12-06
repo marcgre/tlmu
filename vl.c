@@ -2524,7 +2524,16 @@ static int object_create(QemuOpts *opts, void *opaque)
     return 0;
 }
 
+int vl_main(int ignore_sigint, int no_sdl, int no_gui_timer,
+            int argc, char **argv, char **envp);
+
 int main(int argc, char **argv, char **envp)
+{
+    return vl_main(1, 0, 0, argc, argv, envp);
+}
+
+int vl_main(int ignore_sigint, int no_sdl, int no_gui_timer,
+            int argc, char **argv, char **envp)
 {
     int i;
     int snapshot, linux_boot;

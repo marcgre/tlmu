@@ -472,7 +472,7 @@ bool memory_region_is_unassigned(MemoryRegion *mr)
 {
     return mr != &io_mem_ram && mr != &io_mem_rom
         && mr != &io_mem_notdirty && !mr->rom_device
-        && mr != &io_mem_watch;
+        && mr != &io_mem_watch && !memory_region_is_tlmu_ramd(mr);
 }
 
 #define mmap_lock() do { } while(0)
@@ -1896,7 +1896,7 @@ hwaddr memory_region_section_get_iotlb(CPUArchState *env,
     hwaddr iotlb;
     CPUWatchpoint *wp;
 
-    if (memory_region_is_ram(section->mr)) {
+    if (memory_region_is_ram(section->mr) && !memory_region_is_tlmu_ramd(section->mr)) {
         /* Normal RAM.  */
         iotlb = (memory_region_get_ram_addr(section->mr) & TARGET_PAGE_MASK)
             + memory_region_section_addr(section, paddr);
@@ -3368,8 +3368,8 @@ static void invalidate_and_set_dirty(hwaddr addr,
     xen_modified_memory(addr, length);
 }
 
-void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
-                      int len, bool is_write)
+static int address_space_rw_internal(AddressSpace *as, hwaddr addr, uint8_t *buf,
+                            int len, int is_write, int is_debug)
 {
     AddressSpaceDispatch *d = as->dispatch;
     int l;
@@ -3377,6 +3377,7 @@ void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
     uint32_t val;
     hwaddr page;
     MemoryRegionSection *section;
+    int is_ram = 0;
 
     while (len > 0) {
         page = addr & TARGET_PAGE_MASK;
@@ -3384,10 +3385,10 @@ void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
         if (l > len)
             l = len;
         section = phys_page_find(d, page >> TARGET_PAGE_BITS);
-        if(is_debug && tlm_iodev_is_ram(section->mr)){++section->mr->ops;}//change ops to debug one
+        if(is_debug && memory_region_is_tlmu_ramd(section->mr)){++section->mr->ops;}//change ops to debug one
 
         if (is_write) {
-            if (!memory_region_is_ram(section->mr)) {
+            if (!memory_region_is_ram(section->mr) || memory_region_is_tlmu_ramd(section->mr)) {
                 hwaddr addr1;
                 addr1 = memory_region_section_addr(section, addr);
                 /* XXX: could force cpu_single_env to NULL to avoid
@@ -3420,7 +3421,8 @@ void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
             }
         } else {
             if (!(memory_region_is_ram(section->mr) ||
-                  memory_region_is_romd(section->mr))) {
+                  memory_region_is_romd(section->mr)) ||
+                    memory_region_is_tlmu_ramd(section->mr)) {
                 hwaddr addr1;
                 /* I/O case */
                 addr1 = memory_region_section_addr(section, addr);
@@ -3452,9 +3454,96 @@ void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
         len -= l;
         buf += l;
         addr += l;
-        if(is_debug && tlm_iodev_is_ram(section->mr)){--section->mr->ops;}//change ops to normal one
+        if(is_debug && memory_region_is_tlmu_ramd(section->mr)){--section->mr->ops;}//change ops to normal one
     }
+    return is_ram;
 }
+
+static void *qemu_get_ram_base_ptr(ram_addr_t addr)
+{
+    RAMBlock *block;
+
+    QLIST_FOREACH(block, &ram_list.blocks, next) {
+        if (addr - block->offset < block->length) {
+            /* Move this entry to to start of the list.  */
+            if (block != QLIST_FIRST(&ram_list.blocks)) {
+                QLIST_REMOVE(block, next);
+                QLIST_INSERT_HEAD(&ram_list.blocks, block, next);
+            }
+           return block->host;
+        }
+    }
+
+    fprintf(stderr, "Bad ram offset %" PRIx64 "\n", (uint64_t)addr);
+    abort();
+
+    return NULL;
+}
+
+static int qemu_get_ram_len(ram_addr_t addr)
+{
+    RAMBlock *block;
+
+    QLIST_FOREACH(block, &ram_list.blocks, next) {
+        if (addr - block->offset < block->length) {
+            /* Move this entry to to start of the list.  */
+            if (block != QLIST_FIRST(&ram_list.blocks)) {
+                QLIST_REMOVE(block, next);
+                QLIST_INSERT_HEAD(&ram_list.blocks, block, next);
+            }
+            return block->length;
+        }
+    }
+
+    fprintf(stderr, "Bad ram offset %" PRIx64 "\n", (uint64_t)addr);
+    abort();
+
+    return -1;
+}
+
+/* TLM helper to map phys address into ram host ptr.  */
+void *qemu_map_paddr_to_host(hwaddr *paddr_p, int *len)
+{
+    const hwaddr paddr = *paddr_p;
+    MemoryRegionSection *const section = phys_page_find(address_space_memory.dispatch, paddr >> TARGET_PAGE_BITS);;
+    char *host_base = NULL;
+    size_t offset;
+
+    if (!section) {
+       return NULL;
+    }
+
+    if(memory_region_is_ram(section->mr) && !memory_region_is_tlmu_ramd(section->mr)){
+        /* FIXME: Simplify!!!  */
+        const hwaddr ram_addr = memory_region_get_ram_addr(section->mr) + section->offset_within_region;
+
+        char *const host = qemu_get_ram_ptr(ram_addr) + (paddr & ~TARGET_PAGE_MASK);
+        host_base = qemu_get_ram_base_ptr(ram_addr);
+        offset = host - host_base;
+        *paddr_p = paddr - offset;
+        *len = qemu_get_ram_len(ram_addr);
+    }
+    return host_base;
+}
+
+void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
+                      int len, bool is_write){
+    address_space_rw_internal(as, addr, buf, len, is_write, 0);
+}
+
+/* helper functions for TLMu */
+int cpu_physical_memory_rw(hwaddr addr, uint8_t *buf,
+                            int len, int is_write)
+{
+    return address_space_rw_internal(&address_space_memory, addr, buf, len, is_write, 0);
+}
+
+void cpu_physical_memory_rw_debug(hwaddr addr, uint8_t *buf,
+                                  int len, int is_write)
+{
+    address_space_rw_internal(&address_space_memory, addr, buf, len, is_write, 1);
+}
+
 
 void address_space_write(AddressSpace *as, hwaddr addr,
                          const uint8_t *buf, int len)
@@ -3475,12 +3564,6 @@ void address_space_read(AddressSpace *as, hwaddr addr, uint8_t *buf, int len)
 }
 
 
-void cpu_physical_memory_rw(hwaddr addr, uint8_t *buf,
-                            int len, int is_write)
-{
-    return address_space_rw(&address_space_memory, addr, buf, len, is_write);
-}
-
 /* used for ROM loading : can write in RAM and ROM */
 void cpu_physical_memory_write_rom(hwaddr addr,
                                    const uint8_t *buf, int len)
@@ -3499,17 +3582,38 @@ void cpu_physical_memory_write_rom(hwaddr addr,
         section = phys_page_find(d, page >> TARGET_PAGE_BITS);
 
         if (!(memory_region_is_ram(section->mr) ||
+              memory_region_is_tlmu_ramd(section->mr) ||
               memory_region_is_romd(section->mr))) {
             /* do nothing */
         } else {
-            unsigned long addr1;
-            addr1 = memory_region_get_ram_addr(section->mr)
-                + memory_region_section_addr(section, addr);
-            /* ROM/RAM case */
-            ptr = qemu_get_ram_ptr(addr1);
-            memcpy(ptr, buf, l);
-            invalidate_and_set_dirty(addr1, l);
-            qemu_put_ram_ptr(ptr);
+            if(memory_region_is_tlmu_ramd(section->mr)){
+                if(section->offset_within_address_space <= addr
+                        && (addr + len) < (section->offset_within_address_space + section->size)){
+                    cpu_physical_memory_rw_debug(addr, (uint8_t *)buf, len, 1);// buf is treated read-only in cpu_physical_memory_rw_debug()
+                }
+                else{
+                    fprintf(stderr, "boot code must be stored in 1 memory region section\n");
+                    fprintf(stderr, "start:0x%08llX len:0x%X section start:0x%08llX size:0x%llX\n",
+                            (long long) addr, len,
+                            (long long) section->offset_within_address_space, (long long)section->size
+                            );
+                    abort();
+                }
+                    fprintf(stderr, "start:0x%08llX len:0x%X section start:0x%08llX size:0x%llX\n",
+                            (long long) addr, len,
+                            (long long) section->offset_within_address_space, (long long)section->size
+                            );
+            }
+            else{
+                unsigned long addr1;
+                addr1 = memory_region_get_ram_addr(section->mr)
+                    + memory_region_section_addr(section, addr);
+                /* ROM/RAM case */
+                ptr = qemu_get_ram_ptr(addr1);
+                memcpy(ptr, buf, l);
+                invalidate_and_set_dirty(addr1, l);
+                qemu_put_ram_ptr(ptr);
+            }
         }
         len -= l;
         buf += l;
@@ -3677,7 +3781,7 @@ static inline uint32_t ldl_phys_internal(hwaddr addr,
 
     section = phys_page_find(address_space_memory.dispatch, addr >> TARGET_PAGE_BITS);
 
-    if (!(memory_region_is_ram(section->mr) ||
+    if (memory_region_is_tlmu_ramd(section->mr) || !(memory_region_is_ram(section->mr) ||
           memory_region_is_romd(section->mr))) {
         /* I/O case */
         addr = memory_region_section_addr(section, addr);

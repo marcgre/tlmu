@@ -38,6 +38,10 @@
 #include "mips_cpudevs.h"
 #endif
 
+#ifdef TARGET_ARM
+#include "arm-misc.h"
+#endif
+
 #include "tlm.h"
 #include "tlm_mem.h"
 
@@ -162,13 +166,10 @@ void tlm_mach_init_common (ram_addr_t ram_size,
 }
 
 static
-void tlm_mach_init (ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+void tlm_mach_init (QEMUMachineInitArgs *args)
 {
-    tlm_mach_init_common(ram_size, boot_device, kernel_filename, kernel_cmdline,
-                         initrd_filename, cpu_model);
+    tlm_mach_init_common(args->ram_size, args->boot_device, args->kernel_filename, args->kernel_cmdline,
+                         args->initrd_filename, args->cpu_model);
 }
 
 static QEMUMachine tlm_mach_machine = {

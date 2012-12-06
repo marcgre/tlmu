@@ -373,6 +373,17 @@ static inline bool memory_region_is_romd(MemoryRegion *mr)
 }
 
 /**
+ * memory_region_is_tlmu_ramd: check whether a memory region is RAMD in TLMu
+ *
+ * Returns %true is a memory region is RAMD defined in TLMu
+ *
+ * @mr: the memory region being queried
+ */
+static inline bool memory_region_is_tlmu_ramd(MemoryRegion *mr){
+    return mr->ops && mr->ram;
+}
+
+/**
  * memory_region_name: get a memory region's name
  *
  * Returns the string that was used to initialize the memory region.

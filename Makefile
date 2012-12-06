@@ -247,7 +247,7 @@ qemu-ga$(EXESUF): qemu-ga.o $(qga-obj-y) $(oslib-obj-y) $(trace-obj-y) $(qapi-ob
 QEMULIBS=libuser libdis libdis-user
 
 tlmu:
-	for a in $(TARGET_DIRS); do $(MAKE) -C $$a tlmu; done
+	for a in $(TARGET_DIRS); do $(MAKE) -C $$a tlmu BUILD_DIR=${BUILD_DIR}; done
 
 libtlmu.a: tlmu.o
 	$(AR) -r $@ $<
