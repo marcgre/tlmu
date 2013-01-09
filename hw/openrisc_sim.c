@@ -28,6 +28,7 @@
 #include "sysemu/sysemu.h"
 #include "sysbus.h"
 #include "sysemu/qtest.h"
+#include "openrisc_pic.h"
 
 #define KERNEL_LOAD_ADDR 0x100
 
