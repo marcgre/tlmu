@@ -182,9 +182,26 @@ int dmi_is_allowed(struct TLMMemory_base *info, int flags, uint64_t addr, int le
     return 0;
 }
 
+static inline hwaddr adjust_address_for_endianness(hwaddr orig_addr, unsigned int len){
+#if defined(TARGET_WORDS_BIGENDIAN) == defined(HOST_WORDS_BIGENDIAN)
+    return orig_addr;
+#else
+#if TARGET_LONG_SIZE == 4 /* FIXME:TARGET_LONG_SIZE is word size ? FIXME:only word == 32bit is implemented */
+    assert(!(orig_addr % len)); /* FIXME:only aligned access is implemented */
+    switch(len & 0x3){
+        case 0: /* word access */
+            return orig_addr;
+        case 1:return orig_addr ^ 0x3;
+        case 2:return orig_addr ^ 0x2;
+        case 3:assert(!"length 3 is not supported");
+    }
+#endif
+#endif
+}
+
 static inline uint64_t tlm_dbg_read(void *opaque, hwaddr addr, unsigned int len){
     struct TLMMemory_base *const info = opaque;
-    const uint64_t eaddr = info->base_addr + addr;
+    const uint64_t eaddr = info->base_addr + adjust_address_for_endianness(addr, len);
     uint64_t r = 0;
     const int64_t clk = qemu_get_clock_ns(vm_clock);
     D(printf("tlm_dbg_read(%p, %08llX, %d)\n", opaque, (long long)eaddr, len));
@@ -194,7 +211,7 @@ static inline uint64_t tlm_dbg_read(void *opaque, hwaddr addr, unsigned int len)
 
 static inline void tlm_dbg_write(void *opaque, hwaddr addr, uint64_t value, unsigned int len){
     struct TLMMemory_base *const info = opaque;
-    const uint64_t eaddr = info->base_addr + addr;
+    const uint64_t eaddr = info->base_addr + adjust_address_for_endianness(addr, len);
     const int64_t clk = qemu_get_clock_ns(vm_clock);
     D(printf("tlm_dbg_write(%p, %08llX, %08llX, %d)\n", opaque, (long long)eaddr, (long long)value, len));
     tlm_bus_access_dbg_cb(tlm_opaque, clk, 1, eaddr, &value, len);
@@ -205,7 +222,7 @@ uint64_t tlm_read(void *opaque, hwaddr addr, unsigned int len)
 {
     struct TLMMemory_base *const info = opaque;
     uint64_t r = 0;
-    const uint64_t eaddr = info->base_addr + addr;
+    const uint64_t eaddr = info->base_addr + adjust_address_for_endianness(addr, len);
     int64_t clk;
     int dmi_supported;
 
@@ -239,7 +256,7 @@ static inline void
 tlm_write(void *opaque, hwaddr addr, uint64_t value, unsigned int len)
 {
     struct TLMMemory_base *const info = opaque;
-    uint64_t eaddr = info->base_addr + addr;
+    const uint64_t eaddr = info->base_addr + adjust_address_for_endianness(addr, len);
     int64_t clk;
     int dmi_supported;
 
