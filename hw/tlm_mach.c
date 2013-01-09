@@ -42,6 +42,10 @@
 #include "arm-misc.h"
 #endif
 
+#ifdef TARGET_OPENRISC
+#include "openrisc_pic.h"
+#endif
+
 #include "tlm.h"
 #include "tlm_mem.h"
 
@@ -75,6 +79,8 @@ static void main_cpu_reset(void *opaque)
     env->active_tc.PC = bootstrap_pc;
 #elif defined(TARGET_ARM)
     env->regs[15] = bootstrap_pc;
+#elif defined(TARGET_OPENRISC)
+    env->pc = bootstrap_pc;
 #endif
 
     if (tlm_boot_state == TLMU_BOOT_SLEEPING) {
@@ -96,6 +102,7 @@ void tlm_mach_init_common (ram_addr_t ram_size,
     CPUArchState *env_;
     qemu_irq *cpu_irq;
     int kernel_size;
+    int is_bigendian = 0; /* arm, mips, cris are little endian */
 
     /* init CPUs */
     if (cpu_model == NULL) {
@@ -126,6 +133,13 @@ void tlm_mach_init_common (ram_addr_t ram_size,
     cpu_irq = arm_pic_init_cpu(arm_env_get_cpu(env_));
     tlm_map(env_, 0x0ULL, 0xffffffffULL,
             tlm_sync_period_ns, cpu_irq, 2, NULL);
+#elif defined(TARGET_OPENRISC)
+    cpu_irq = cpu_openrisc_pic_init(openrisc_env_get_cpu(env_));
+    cpu_openrisc_clock_init(openrisc_env_get_cpu(env_));
+    tlm_map(env_, 0x0ULL, 0xffffffffULL,
+            tlm_sync_period_ns, cpu_irq, NR_IRQS, NULL);
+    is_bigendian = 1;
+
 #endif
 
     tlm_register_rams();
@@ -134,7 +148,7 @@ void tlm_mach_init_common (ram_addr_t ram_size,
         uint64_t entry, low, high;
 
         kernel_size = load_elf(kernel_filename, translate_kaddr, NULL,
-                               &entry, &low, &high, 0, ELF_MACHINE, 0);
+                               &entry, &low, &high, is_bigendian, ELF_MACHINE, 0);
 
         bootstrap_pc = entry;
         if (kernel_size < 0) {
@@ -157,6 +171,9 @@ void tlm_mach_init_common (ram_addr_t ram_size,
         bootstrap_pc = 0x1fc00000LL;
 #endif
 #ifdef TARGET_ARM
+        bootstrap_pc = 0x0;
+#endif
+#ifdef TARGET_OPENRISC
         bootstrap_pc = 0x0;
 #endif
     }
