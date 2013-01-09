@@ -359,7 +359,7 @@ int cpu_openrisc_signal_handler(int host_signum, void *pinfo, void *puc);
 
 #ifndef CONFIG_USER_ONLY
 /* hw/openrisc_pic.c */
-void cpu_openrisc_pic_init(OpenRISCCPU *cpu);
+//void cpu_openrisc_pic_init(OpenRISCCPU *cpu);
 
 /* hw/openrisc_timer.c */
 void cpu_openrisc_clock_init(OpenRISCCPU *cpu);

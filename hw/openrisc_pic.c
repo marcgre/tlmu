@@ -20,6 +20,7 @@
 
 #include "hw.h"
 #include "cpu.h"
+#include "openrisc_pic.h"
 
 /* OpenRISC pic handler */
 static void openrisc_pic_cpu_handler(void *opaque, int irq, int level)
@@ -48,7 +49,7 @@ static void openrisc_pic_cpu_handler(void *opaque, int irq, int level)
     }
 }
 
-void cpu_openrisc_pic_init(OpenRISCCPU *cpu)
+qemu_irq *cpu_openrisc_pic_init(OpenRISCCPU *cpu)
 {
     int i;
     qemu_irq *qi;
@@ -57,4 +58,5 @@ void cpu_openrisc_pic_init(OpenRISCCPU *cpu)
     for (i = 0; i < NR_IRQS; i++) {
         cpu->env.irq[i] = qi[i];
     }
+    return qi;
 }
