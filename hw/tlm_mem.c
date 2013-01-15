@@ -30,6 +30,7 @@
 #include "qdev-addr.h"
 #include "ptimer.h"
 
+#include "gdbstub.h"
 #include "tlm.h"
 
 #define D(x)
@@ -351,6 +352,11 @@ void tlm_notify_event(enum tlmu_event ev, void *d)
             break;
         case TLMU_TLM_EVENT_RESET:
             qemu_system_reset_request();
+            break;
+        case TLMU_TLM_EVENT_DEBUG_BREAK:
+            if (cpu_single_env && gdbserver_has_client()) {
+              cpu_interrupt(cpu_single_env, CPU_INTERRUPT_DEBUG);
+            }
             break;
         default:
             break;
