@@ -351,6 +351,11 @@ void tlm_notify_event(enum tlmu_event ev, void *d)
         case TLMU_TLM_EVENT_RESET:
             qemu_system_reset_request();
             break;
+        case TLMU_TLM_EVENT_DEBUG_BREAK:
+            if (cpu_single_env && gdbserver_has_client()) {
+              cpu_interrupt(cpu_single_env, CPU_INTERRUPT_DEBUG);
+            }
+            break;
         default:
             break;
     }
