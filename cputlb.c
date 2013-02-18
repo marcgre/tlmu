@@ -255,13 +255,14 @@ void tlb_set_page(CPUArchState *env, target_ulong vaddr,
     section = phys_page_find(address_space_memory.dispatch, paddr >> TARGET_PAGE_BITS);
 #if defined(DEBUG_TLB)
     printf("tlb_set_page: vaddr=" TARGET_FMT_lx " paddr=0x" TARGET_FMT_plx
-           " prot=%x idx=%d pd=0x%08lx\n",
-           vaddr, paddr, prot, mmu_idx, pd);
+           " prot=%x idx=%d section_name:%s\n",
+           vaddr, paddr, prot, mmu_idx, section->mr->name);
 #endif
 
     address = vaddr;
     if (!(memory_region_is_ram(section->mr) ||
-          memory_region_is_romd(section->mr))) {
+          memory_region_is_romd(section->mr)) ||
+            memory_region_is_tlmu_ramd(section->mr) ) {
         /* IO memory case (romd handled later) */
         address |= TLB_MMIO;
     }
@@ -294,7 +295,8 @@ void tlb_set_page(CPUArchState *env, target_ulong vaddr,
     }
     if (prot & PAGE_WRITE) {
         if ((memory_region_is_ram(section->mr) && section->readonly)
-            || memory_region_is_romd(section->mr)) {
+            || memory_region_is_romd(section->mr)
+            || memory_region_is_tlmu_ramd(section->mr)) {
             /* Write access calls the I/O callback.  */
             te->addr_write = address | TLB_MMIO;
         } else if (memory_region_is_ram(section->mr)
