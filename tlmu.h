@@ -21,6 +21,13 @@
  */
 
 #include <setjmp.h>
+
+#define TLMU_BASE_QEMU_MAJOR_VER 1
+#define TLMU_BASE_QEMU_MINOR_VER 4
+#define TLMU_BASE_QEMU_RELEASE_VER 0
+#define TLMU_BASE_QEMU_VER ((TLMU_BASE_QEMU_MAJOR_VER << 16) | (TLMU_BASE_QEMU_MINOR_VER << 8) | (TLMU_BASE_QEMU_RELEASE_VER << 0))
+
+
 #include "tlmu-qemuif.h"
 
 struct tlmu_timer {
