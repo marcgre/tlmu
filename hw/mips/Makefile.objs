@@ -3,4 +3,8 @@ obj-y += mips_addr.o mips_timer.o mips_int.o
 obj-y += gt64xxx.o mc146818rtc.o
 obj-$(CONFIG_FULONG) += bonito.o vt82c686.o mips_fulong2e.o
 
+obj-y += tlm_mach.o
+obj-y += tlm_mem.o
+obj-y += ptimer.o
+
 obj-y := $(addprefix ../,$(obj-y))

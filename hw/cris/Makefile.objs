@@ -3,11 +3,15 @@ obj-y = cris_pic_cpu.o
 obj-y += cris-boot.o
 obj-y += axis_dev88.o
 
+obj-y += tlm_mach.o
+obj-y += tlm_mem.o
+
 # IO blocks
 obj-y += etraxfs_dma.o
 obj-y += etraxfs_pic.o
 obj-y += etraxfs_eth.o
 obj-y += etraxfs_timer.o
 obj-y += etraxfs_ser.o
+
 
 obj-y := $(addprefix ../,$(obj-y))

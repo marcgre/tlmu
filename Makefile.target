@@ -23,6 +23,7 @@ ifneq (,$(findstring -mwindows,$(LIBS)))
 QEMU_PROGW=qemu-system-$(TARGET_ARCH2)w$(EXESUF)
 endif # windows executable
 QEMU_PROG=qemu-system-$(TARGET_ARCH2)$(EXESUF)
+LIB_TLMU=libtlmu-$(TARGET_ARCH2).so
 endif
 
 PROGS=$(QEMU_PROG)
@@ -60,6 +61,7 @@ stap:
 endif
 
 all: $(PROGS) stap
+tlmu: all $(LIB_TLMU)
 
 # Dummy command so that make thinks it has done something
 	@true
@@ -71,6 +73,9 @@ obj-y += tcg/tcg.o tcg/optimize.o
 obj-$(CONFIG_TCG_INTERPRETER) += tci.o
 obj-$(CONFIG_TCG_INTERPRETER) += disas/tci.o
 obj-y += fpu/softfloat.o
+obj-y += disas.o
+obj-y += tlm.o
+obj-$(CONFIG_TCI_DIS) += tci-dis.o
 obj-y += target-$(TARGET_BASE_ARCH)/
 obj-y += disas.o
 obj-$(CONFIG_GDBSTUB_XML) += gdbstub-xml.o
@@ -158,6 +163,14 @@ $(QEMU_PROG): $(all-obj-y) ../libqemuutil.a ../libqemustub.a
 	$(call LINK,$^)
 endif
 
+tobj-y = $(obj-y)
+tobj-y += $(obj-$(TARGET_BASE_ARCH)-y)
+
+$(LIB_TLMU): $(all-obj-y) ../libqemuutil.a
+	$(CC) -shared -Wl,-soname,$(LIB_TLMU) \
+	        -Wl,--version-script=$(SRC_PATH)/lib-tlmu.version \
+	        --whole-archive -o $@ $^ -pthread $(LIBS)
+ 
 gdbstub-xml.c: $(TARGET_XML_FILES) $(SRC_PATH)/scripts/feature_to_c.sh
 	$(call quiet-command,rm -f $@ && $(SHELL) $(SRC_PATH)/scripts/feature_to_c.sh $@ $(TARGET_XML_FILES),"  GEN   $(TARGET_DIR)$@")
 
@@ -173,6 +186,13 @@ clean:
 	rm -f hmp-commands.h qmp-commands-old.h gdbstub-xml.c
 ifdef CONFIG_TRACE_SYSTEMTAP
 	rm -f *.stp
+endif
+
+install-tlmu: $(LIB_TLMU)
+	$(INSTALL) -D -m 755 $(LIB_TLMU) "$(DESTDIR)/lib/$(LIB_TLMU)"
+	$(INSTALL) -D $(SRC_PATH)/tlmu-qemuif.h "$(DESTDIR)/include/tlmu/tlmu-qemuif.h"
+ifneq ($(STRIP),)
+	$(STRIP) $(DESTDIR)/lib/$(LIB_TLMU)
 endif
 
 install: all
