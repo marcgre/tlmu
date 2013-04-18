@@ -174,7 +174,7 @@ void tlm_mach_init_common (ram_addr_t ram_size,
         bootstrap_pc = 0x0;
 #endif
 #ifdef TARGET_OPENRISC
-        bootstrap_pc = 0x0;
+        bootstrap_pc = 0x0100;
 #endif
     }
 }
