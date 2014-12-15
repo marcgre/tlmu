@@ -67,4 +67,7 @@ DEF_HELPER_FLAGS_1(rfe, 0, void, env)
 DEF_HELPER_FLAGS_4(mtspr, 0, void, env, tl, tl, tl)
 DEF_HELPER_FLAGS_4(mfspr, 0, tl, env, tl, tl, tl)
 
+/* nop (for or1ksim like behaviour) */
+DEF_HELPER_FLAGS_2(l_nop, 0, void, env, i32)
+
 #include "exec/def-helper.h"
