@@ -742,6 +742,13 @@ static void dec_misc(DisasContext *dc, uint32_t insn)
         switch (op1) {
         case 0x01:    /* l.nop */
             LOG_DIS("l.nop %d\n", I16);
+            { // @see nop_helper.c
+                if (I16){ // only l.nop instructions where the lower 16 bits are not zero need this function call
+                    TCGv_i32 im = tcg_const_i32(I16); // copy value
+                    gen_helper_l_nop(cpu_env,im); // generate function call
+                    tcg_temp_free_i32(im); // cleanup
+                }
+            }
             break;
 
         default:
