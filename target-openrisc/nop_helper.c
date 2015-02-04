@@ -43,13 +43,20 @@
 void HELPER(l_nop)(CPUOpenRISCState *env, uint32_t code)
 {
 
-	// OpenRISCCPU * cpu = openrisc_env_get_cpu(env); // get cpu state
+	//OpenRISCCPU * cpu = openrisc_env_get_cpu(env); // get cpu state
 
 	switch (code) {
-	case 1:
+	case NOP_EXIT:
 		qemu_system_shutdown_request(); // maybe there is a better function to exit the current cpu
-		cpu_loop_exit(env);
 		break;
+	case NOP_REPORT:
+		printf("report(0x%"PRIx32");\n",env->gpr[3]);
+		fflush( stdout );
+		break;
+	case NOP_PUTC:
+		printf("%c", (char) env->gpr[3]);
+      		fflush( stdout );
+      		break;
 	///TODO handle other cases
 	default:
 		break;
